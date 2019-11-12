@@ -1,146 +1,153 @@
+"""Client program for anonymous bulletin board system"""
 import sys      # cmd-line arguments
 import json     # list/dict serialisation
 import datetime # date, time
-from socket import *
+import socket
 
-def getCommandLineArgs(defaultServerAddress, defaultServerPort):
-    # determine address/port from command-line arguments, or default values otherwise:
+def get_command_line_args(default_server_address, default_server_port):
+    """determine address/port from command-line arguments, or default values otherwise"""
     if len(sys.argv) == 3:
         return (sys.argv[1], int(sys.argv[2]))
-    else:
-        return (defaultServerAddress, defaultServerPort)
-    
-def makeRequest(serverInfo, requestType, args = None):
-    # new socket opened, used and closed for each new request:
+    return (default_server_address, default_server_port)
+
+def make_request(server_info, request_type, args=None):
+    """for each request, a new socket is opened, used and closed"""
 
     # send request, receive response, and handle errors:
     try:
-        clientSocket = socket(AF_INET, SOCK_STREAM)
-        clientSocket.settimeout(serverInfo['timeout'])
-        clientSocket.connect(serverInfo['addr'])
-        request = {'requestType': requestType, 'args' : args}
-        clientSocket.send(json.dumps(request).encode())
-        [response, successFlag] = json.loads(clientSocket.recv(1024).decode())
-        clientSocket.close()
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.settimeout(server_info['timeout'])
+        client_socket.connect(server_info['addr'])
+        request = {'request_type': request_type, 'args' : args}
+        client_socket.send(json.dumps(request).encode())
+        [response, success_flag] = json.loads(client_socket.recv(1024).decode())
+        client_socket.close()
     except ConnectionRefusedError:
         print("Error: Server unavailable. Exiting...")
-        clientSocket.close()
+        client_socket.close()
         sys.exit()
-    except timeout:
-        print("Error: Connection timed out (no response within {}s). Exiting...".format(serverInfo[1]))
-        clientSocket.close()
+    except socket.timeout:
+        print("Error: Connection timed out (limit {}s). Exiting...".format(server_info[1]))
+        client_socket.close()
         sys.exit()
 
     # client must inform the user if command was successful or not:
-    if successFlag == True:
-        print("Command \"{}\" successful".format(requestType))
+    if success_flag:
+        print("Command \"{}\" successful".format(request_type))
     else:
-        print("Command \"{}\" unsuccessful".format(requestType))
-    return response, successFlag
+        print("Command \"{}\" unsuccessful".format(request_type))
+    return response, success_flag
 
-def showBoardList(boardList):
-    # convert received board array into user-friendly format:
-    boardListString = 'BOARD LIST:\n'
-    delimiterString = '\n'
-    for i in range(len(boardList)):
-        boardListString += "{}. {}".format(str(i), boardList[i])
+def show_board_list(board_list):
+    """convert received board array into user-friendly format"""
+    board_list_string = 'BOARD LIST:\n'
+    delimiter_string = '\n'
+    board_count = len(board_list)
+    for i in range(board_count):
+        board_list_string += "{}. {}".format(str(i), board_list[i]).replace("_", " ")
         # add delimiter after every element except the last one
-        if i < len(boardList)-1:
-            boardListString += delimiterString
-    boardListString += '\n'
-    print(boardListString)
+        if i < len(board_list)-1:
+            board_list_string += delimiter_string
+    board_list_string += '\n'
+    print(board_list_string)
 
-def parseFileTitle(fileTitle):
+def parse_file_title(file_title):
+    """parsing operations for file title"""
     # convert YYYYMMDD-HHMMSS to YYYY/MM/DD HH/MM/SS in date component:
-    datetimeObject = datetime.datetime.strptime(fileTitle[:15],'%Y%m%d-%H%M%S')
-    dateString = datetimeObject.strftime('%Y/%m/%d %H:%M:%S')
+    datetime_object = datetime.datetime.strptime(file_title[:15], '%Y%m%d-%H%M%S')
+    date_string = datetime_object.strftime('%Y/%m/%d %H:%M:%S')
     # convert underscores to spaces in title component
-    messageTitle = fileTitle[16:-4].replace('_', ' ')
-    return dateString, messageTitle
+    message_title = file_title[16:-4].replace('_', ' ')
+    return date_string, message_title
 
-def showMessageList(boardName, fileList):
-    fileCount = len(fileList)
-    if fileCount == 0:
-        print('No messages to show for board \"{}\".\n'.format(boardName))
+def show_message_list(board_name, file_list):
+    """convert received list of messages to user-friendly format"""
+    file_count = len(file_list)
+    if file_count == 0:
+        print('No messages to show for board \"{}\".\n'.format(board_name))
         return
-    delimiterString = '====\n'
-    messageListString = 'Showing most recent {} message(s) for board \"{}\":\n\n'.format(fileCount, boardName)
-    for i in range(fileCount):
-        fileTitle, fileContent = fileList[i][0], fileList[i][1] # unpack title and content from received list
-        # convert data to user-friendly format:
-        messageDate, messageTitle = parseFileTitle(fileTitle)
-        messageListString += 'Title: {}\n'.format(messageTitle)
-        messageListString += 'Date: {}\n'.format(messageDate)
-        messageListString += 'Content: {}\n'.format(fileContent)
-        if i < fileCount-1:
-            # add delimiter after every element except the last one
-            messageListString += delimiterString
-    print(messageListString)
+    delimiter_string = '====\n'
 
-    
+    message_list_string = "Showing most recent {} message(s)".format(file_count)
+    message_list_string += "for board \"{}\":\n\n".format(board_name)
+    for i in range(file_count):
+        file_title, file_content = file_list[i][0], file_list[i][1]
+        # convert data to user-friendly format:
+        message_date, message_title = parse_file_title(file_title)
+        message_list_string += 'Title: {}\n'.format(message_title)
+        message_list_string += 'Date: {}\n'.format(message_date)
+        message_list_string += 'Content: {}\n'.format(file_content)
+        if i < file_count-1:
+            # add delimiter after every element except the last one
+            message_list_string += delimiter_string
+    print(message_list_string)
+
 def main():
+    """main function"""
     # variables
-    defaultServerAddress = '127.0.0.1'
-    defaultServerPort = 12000
-    socketTimeout = 10
+    default_server_address = '127.0.0.1'
+    default_server_port = 12000
+    socket_timeout = 10
 
     # define server info and make initial request for boards
-    serverInfo = {'addr': getCommandLineArgs(defaultServerAddress, defaultServerPort), 'timeout': socketTimeout}
-    response, successFlag = makeRequest(serverInfo, 'GET_BOARDS')
+    server_info = {}
+    server_info['addr'] = get_command_line_args(default_server_address, default_server_port)
+    server_info['timeout'] = socket_timeout
+
+    response, success_flag = make_request(server_info, 'GET_BOARDS')
 
     # error checking
-    if successFlag == True:
-        boardList = response
-        showBoardList(boardList)
+    if success_flag:
+        board_list = response
+        show_board_list(board_list)
     else:
         print(response)
         print("Board retrieval failed; Exiting program")
         return
 
     # get and act on user's input until quit
-    while True:    
+    while True:
         print('OPTIONS (case-sensitive):')
-        print('Type a board number ({}-{}) to show the 100 most recent messages in the specified board.'.format(0, len(boardList)-1))
+        print('Type a board number to show the most recent messages in that board.')
         print('Type \"POST\" to create a new message.')
         print('Type \"QUIT\" to quit.')
-        userChoice = input('Input: ')
+        user_choice = input('Input: ')
         print()
-        if userChoice == 'QUIT':
+        if user_choice == 'QUIT':
             break
-        elif userChoice.isnumeric() and int(userChoice) in range(len(boardList)):
+        if user_choice.isnumeric() and int(user_choice) in range(len(board_list)):
             # convert user-input board number to server-required board name:
-            boardName = boardList[int(userChoice)]
+            board_name = board_list[int(user_choice)]
             # define arguments, make request, and act on result:
-            args = {'boardName': boardName}
-            response, successFlag = makeRequest(serverInfo, "GET_MESSAGES", args)
-            if successFlag == True:
-                fileList = response
-                showMessageList(boardName, fileList)
+            args = {'board_name': board_name}
+            response, success_flag = make_request(server_info, "GET_MESSAGES", args)
+            if success_flag:
+                file_list = response
+                show_message_list(board_name, file_list)
             else:
                 print(response)
             input('Press Enter to continue.')
-            print()
-        elif userChoice == 'POST':
+        elif user_choice == 'POST':
             # define arguments, make request, and act on result:
             args = {}
             try:
                 # convert user-input board number to server-required board name:
-                boardNumber = int(input('Enter number of board to post message on: '))
-                args['boardName'] = boardList[boardNumber]
+                board_number = int(input('Enter number of board to post message on: '))
+                args['board_name'] = board_list[board_number]
             except (IndexError, ValueError):
                 print("Error: Invalid board number.")
                 input('Press Enter to continue.')
                 print()
                 continue
-            args['postTitle'] = input('Enter post title: ')
-            args['messageContent'] = input('Enter message content: ')
-            response, successFlag = makeRequest(serverInfo, "POST_MESSAGE", args)
+            args['post_title'] = input('Enter post title: ')
+            args['message_content'] = input('Enter message content: ')
+            response, success_flag = make_request(server_info, "POST_MESSAGE", args)
             print(response)
             input('Press Enter to continue.')
-            print()
         else:
             # error checking
             input('User input not recognised. Press Enter to continue.')
-            print()
-    
-main()
+        print()
+
+if __name__ == "__main__":
+    main()

@@ -1,144 +1,149 @@
+"""Server program for anonymous bulletin board system"""
 import sys      # cmd-line arguments
 import json     # list/dict serialisation
 import datetime # date, time
 import os       # filesystem
-import re       # filename verification
-from socket import *
+import re       # file_name verification
+import socket
 
-#TODO: Clarify Spaces in board titles should be replacedwith underscores(“_”).
-
-def getCommandLineArgs(defaultServerAddress, defaultServerPort):
-    # determine address/port from command-line arguments, or default values otherwise:
+def get_command_line_args(default_server_address, default_server_port):
+    """determine address/port from command-line arguments, or default values otherwise"""
     if len(sys.argv) == 3:
         return (sys.argv[1], int(sys.argv[2]))
-    else:
-        return (defaultServerAddress, defaultServerPort)
+    return (default_server_address, default_server_port)
 
-def sendResponse(response, connectionSocket, successFlag = True, showResponse = True):
-    # all responses are combined with a success/failure flag, converted to JSON and encoded:
-    connectionSocket.send(json.dumps((response, successFlag)).encode())
-    infoString = "Response sent to client"
-    if showResponse == True:
-        infoString += ": \n{}".format(response)
+def send_response(response, connection_socket, success_flag=True, show_response=True):
+    """
+    for all responses, combine with a success/failure flag,
+    convert to JSON and encode before sending
+    """
+    connection_socket.send(json.dumps((response, success_flag)).encode())
+    info_string = "Response sent to client"
+    if show_response:
+        info_string += ": \n{}".format(response)
     else:
-        infoString += "."
-    print(infoString)
-    
-def getBoardList():
+        info_string += "."
+    print(info_string)
+
+def get_board_list():
+    """list all directories(boards) in folder"""
     return next(os.walk('.\\board'))[1]
-    # list all directories(boards) in folder
     # source: https://stackoverflow.com/a/142535
 
-def getMessages(args):
+def get_messages(args):
+    """create and return a list of messages for the specified board"""
     # error handling for missing parameter(s) or nonexistent board:
-    if args == None:
+    if args is None:
         return "ERROR: No parameters provided.", False
     try:
-        boardName = args['boardName']
-    except KeyError as e:
-        return "ERROR: Missing parameter {}".format(e), False
-    if boardName not in getBoardList():
-        return "ERROR: Board \"{}\" does not exist.".format(boardName), False
-    
-    boardPath = '.\\board\\{}'.format(boardName)
-    messageList = next(os.walk(boardPath))[2] # list all files (messages) in folder
-    messageList.sort() # ordered alphanumerically by name (and therefore ordered by date)
-    messageList = messageList[0:100] # 100 most recent messages
+        board_name = args['board_name']
+    except KeyError as error:
+        return "ERROR: Missing parameter {}".format(error), False
+    if board_name not in get_board_list():
+        return "ERROR: Board \"{}\" does not exist.".format(board_name), False
+
+    board_path = '.\\board\\{}'.format(board_name)
+    message_list = next(os.walk(board_path))[2] # list all files (messages) in folder
+    message_list.sort() # ordered alphanumerically by name (and therefore ordered by date)
+    message_list = message_list[0:100] # 100 most recent messages
 
     # construct a list of title-content arrays, but only from files that follow naming convention:
-    responseData = []
-    for messageTitle in messageList:
-        if re.search("[0-9]{8}-[0-9]{6}-.+\.txt", messageTitle) != None:
-            f = open('{}\\{}'.format(boardPath, messageTitle), 'r')
-            messageContent = f.read()
-            responseData.append([messageTitle, messageContent])
-            f.close()
-    return responseData, True
+    response_data = []
+    for message_title in message_list:
+        if re.search("[0-9]{8}-[0-9]{6}-.+[.]txt", message_title) is not None:
+            file = open('{}\\{}'.format(board_path, message_title), 'r')
+            message_content = file.read()
+            response_data.append([message_title, message_content])
+            file.close()
+    return response_data, True
 
-def postMessage(args, requestTimestamp):
+def post_message(args, request_timestamp):
+    """create a new message file in the specified board with the specified data"""
     # error handling for missing parameter(s) or nonexistent board:
-    if args == None:
+    if args is None:
         return "ERROR: No parameters provided.", False
     try:
-        boardName = args['boardName']
-        if not boardName in getBoardList():
-            return "ERROR: Board \"{}\" does not exist.".format(boardName), False
-        boardPath = '.\\board\\{}'.format(boardName)
-        messageTitle = args['postTitle']
-        messageContent = args['messageContent']
-    except KeyError as e:
-        return "ERROR: Missing parameter {}".format(e), False
-    # create filename from timestamp and title:
-    fileName = requestTimestamp.strftime('%Y%m%d-%H%M%S') #YYYYMMDD-HHMMSS
-    fileName += '-'
-    fileName += '{}.txt'.format(messageTitle.replace(' ', '_'))
+        board_name = args['board_name']
+        if not board_name in get_board_list():
+            return "ERROR: Board \"{}\" does not exist.".format(board_name), False
+        board_path = '.\\board\\{}'.format(board_name)
+        message_title = args['postTitle']
+        message_content = args['message_content']
+    except KeyError as error:
+        return "ERROR: Missing parameter {}".format(error), False
+    # create file_name from timestamp and title:
+    file_name = request_timestamp.strftime('%Y%m%d-%H%M%S') #YYYYMMDD-HHMMSS
+    file_name += '-'
+    file_name += '{}.txt'.format(message_title.replace(' ', '_'))
     # create and write to file:
-    f = open('{}\\{}'.format(boardPath, fileName), 'w+')
-    f.write(messageContent)
-    f.close()
+    file = open('{}\\{}'.format(board_path, file_name), 'w+')
+    file.write(message_content)
+    file.close()
     return "Message successfully posted.", True
 
 def main():
+    """main function"""
     # variables:
-    defaultServerAddress = '127.0.0.1'
-    defaultServerPort = 12000
-    
+    default_server_address = '127.0.0.1'
+    default_server_port = 12000
+
     # ensure message boards are defined:
     if not os.path.isdir('.\\board'):
         print("Board folder is missing. Ending process...")
         return
-    elif len(getBoardList()) == 0:
+    if len(get_board_list()) == 0:
         print("No boards defined. Ending process...")
         return
 
     # attempt to create server socket
-    serverInfo = getCommandLineArgs(defaultServerAddress, defaultServerPort)
-    serverSocket = socket(AF_INET,SOCK_STREAM)
+    server_info = get_command_line_args(default_server_address, default_server_port)
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        serverSocket.bind(serverInfo)
+        server_socket.bind(server_info)
     except OSError:
         print("ERROR: Unavailable/busy port. Ending process...")
         return
-    serverSocket.listen(1)
+    server_socket.listen(1)
     print("Initialisation finished - starting listening...")
 
     # handle client requests:
     while True:
         print("Waiting for a client to connect...")
-        connectionSocket, addr = serverSocket.accept()
+        connection_socket, addr = server_socket.accept()
         print("Client connected: ", addr)
-        request = json.loads(connectionSocket.recv(1024).decode())
-        requestTimestamp = datetime.datetime.now()
+        request = json.loads(connection_socket.recv(1024).decode())
+        request_timestamp = datetime.datetime.now()
         print("Message received from client: {}".format(request))
-        requestType = request['requestType']
+        request_type = request['request_type']
         args = request['args']
-        if requestType == "GET_BOARDS":
-            response, successFlag = getBoardList(), True
-            # will always be successful when message boards are defined; this has already been verified
-            sendResponse(response, connectionSocket, successFlag)
-        elif requestType == "GET_MESSAGES":
-            response, successFlag = getMessages(args)
-            sendResponse(response, connectionSocket, successFlag, False)
-        elif requestType == "POST_MESSAGE":
-            response, successFlag = postMessage(args, requestTimestamp)
-            sendResponse(response, connectionSocket, successFlag)
+        if request_type == "GET_BOARDS":
+            response, success_flag = get_board_list(), True
+            # will always be successful as message boards have been confirmed to be defined
+            send_response(response, connection_socket, success_flag)
+        elif request_type == "GET_MESSAGES":
+            response, success_flag = get_messages(args)
+            send_response(response, connection_socket, success_flag, False)
+        elif request_type == "POST_MESSAGE":
+            response, success_flag = post_message(args, request_timestamp)
+            send_response(response, connection_socket, success_flag)
         else:
-            successFlag = False
-            sendResponse("ERROR: Request ({}) not recognised.".format(requestType), connectionSocket, successFlag)
+            success_flag = False
+            response = "ERROR: Request ({}) not recognised.".format(request_type)
+            send_response(response, connection_socket, success_flag)
         print()
         # record details in server.log
-        logLine = ""
-        logLine += (addr[0] + ":" + str(addr[1]))
-        logLine += "\t\t"
-        logLine += requestTimestamp.strftime('%Y/%m/%d %H:%M:%S')
-        logLine += "\t\t"
-        logLine += format(requestType, '<12')
-        logLine += "\t\t"
-        logLine += {True: "OK", False: "Error"}[successFlag]
-        logLine += "\n"
-        f = open("server.log", 'a+')
-        f.write(logLine)
-        f.close()
-        
+        log_line = ""
+        log_line += (addr[0] + ":" + str(addr[1]))
+        log_line += "\t\t"
+        log_line += request_timestamp.strftime('%Y/%m/%d %H:%M:%S')
+        log_line += "\t\t"
+        log_line += format(request_type, '<12')
+        log_line += "\t\t"
+        log_line += {True: "OK", False: "Error"}[success_flag]
+        log_line += "\n"
+        file = open("server.log", 'a+')
+        file.write(log_line)
+        file.close()
+
 if __name__ == "__main__":
     main()
