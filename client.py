@@ -20,14 +20,14 @@ def make_request(server_info, request_type, args=None):
         client_socket.connect(server_info['addr'])
         request = {'request_type': request_type, 'args' : args}
         client_socket.send(json.dumps(request).encode())
-        [response, success_flag] = json.loads(client_socket.recv(1024).decode())
+        [response, success_flag] = json.loads(client_socket.recv(2048).decode())
         client_socket.close()
     except ConnectionRefusedError:
         print("Error: Server unavailable. Exiting...")
         client_socket.close()
         sys.exit()
     except socket.timeout:
-        print("Error: Connection timed out (limit {}s). Exiting...".format(server_info[1]))
+        print("Error: Connection timed out (limit {}s). Exiting...".format(server_info['timeout']))
         client_socket.close()
         sys.exit()
 
@@ -87,7 +87,7 @@ def main():
     # variables
     default_server_address = '127.0.0.1'
     default_server_port = 12000
-    socket_timeout = 10
+    socket_timeout = 30
 
     # define server info and make initial request for boards
     server_info = {}
@@ -114,7 +114,8 @@ def main():
         user_choice = input('Input: ')
         print()
         if user_choice == 'QUIT':
-            break
+            print("Ending process...")
+            sys.exit()
         if user_choice.isnumeric() and int(user_choice) in range(len(board_list)):
             # convert user-input board number to server-required board name:
             board_name = board_list[int(user_choice)]
@@ -129,14 +130,12 @@ def main():
             input('Press Enter to continue.')
         elif user_choice == 'POST':
             # define arguments, make request, and act on result:
-            args = {}
             try:
                 # convert user-input board number to server-required board name:
                 board_number = int(input('Enter number of board to post message on: '))
-                args['board_name'] = board_list[board_number]
+                args = {'board_name': board_list[board_number]}
             except (IndexError, ValueError):
-                print("Error: Invalid board number.")
-                input('Press Enter to continue.')
+                input("Error: Invalid board number. Press Enter to continue.")
                 print()
                 continue
             args['post_title'] = input('Enter post title: ')
