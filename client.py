@@ -20,7 +20,16 @@ def make_request(server_info, request_type, args=None):
         client_socket.connect(server_info['addr'])
         request = {'request_type': request_type, 'args' : args}
         client_socket.send(json.dumps(request).encode())
-        [response, success_flag] = json.loads(client_socket.recv(2048).decode())
+        response_raw = ""
+        # keep receiving until no "string terminated early" error recieved (due to buffer overflow)
+        while True:
+            try:
+                response_raw += client_socket.recv(2048).decode()
+                [response, success_flag] = json.loads(response_raw)
+            except json.decoder.JSONDecodeError:
+                continue
+            else:
+                break
         client_socket.close()
     except ConnectionRefusedError:
         print("Error: Server unavailable. Exiting...")
@@ -82,6 +91,16 @@ def show_message_list(board_name, file_list):
             message_list_string += delimiter_string
     print(message_list_string)
 
+def get_board_list(server_info):
+    """attempt to fetch list of boards from the server"""
+    response, success_flag = make_request(server_info, 'GET_BOARDS')
+    if success_flag:
+        return response
+    print(response)
+    print("Board retrieval failed; Exiting program")
+    sys.exit()
+
+
 def main():
     """main function"""
     # variables
@@ -94,19 +113,10 @@ def main():
     server_info['addr'] = get_command_line_args(default_server_address, default_server_port)
     server_info['timeout'] = socket_timeout
 
-    response, success_flag = make_request(server_info, 'GET_BOARDS')
-
-    # error checking
-    if success_flag:
-        board_list = response
-        show_board_list(board_list)
-    else:
-        print(response)
-        print("Board retrieval failed; Exiting program")
-        return
-
     # get and act on user's input until quit
     while True:
+        board_list = get_board_list(server_info)
+        show_board_list(board_list)
         print('OPTIONS (case-sensitive):')
         print('Type a board number to show the most recent messages in that board.')
         print('Type \"POST\" to create a new message.')
@@ -144,7 +154,7 @@ def main():
             print(response)
             input('Press Enter to continue.')
         else:
-            # error checking
+            # error check
             input('User input not recognised. Press Enter to continue.')
         print()
 

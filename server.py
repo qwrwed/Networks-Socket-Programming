@@ -30,9 +30,6 @@ def send_response(response, connection_socket, success_flag=True, show_response=
 
 def get_board_list():
     """list all directories(boards) in folder"""
-    # return next(os.walk('./board'))[1]
-    # source: https://stackoverflow.com/a/142535
-
     return sorted([f for f in os.listdir('./board') if not f.startswith('.')], key=str.lower)
     #source: https://stackoverflow.com/a/26554941
 
@@ -51,8 +48,9 @@ def get_messages(args):
 
     board_path = './board/{}'.format(board_name)
     message_list = next(os.walk(board_path))[2] # list all files (messages) in folder
+    # source: https://stackoverflow.com/a/142535
     message_list.sort() # ordered alphanumerically by name (and therefore ordered by date)
-    message_list = message_list[0:100] # 100 most recent messages
+    message_list = message_list[-100:] # 100 most recent messages
 
     # construct a list of title-content arrays, but only from files that follow naming convention:
     response_data = []
@@ -128,6 +126,8 @@ def handle_connection(connection_socket, addr):
 
 def handle_main_thread(server_socket):
     """accepts client connections and opens a new thread for each"""
+    server_socket.listen(1)
+    print("Initialisation finished - now listening...")
     while True:
         c_sckt, addr = server_socket.accept()
         connection_handler = threading.Thread(target=handle_connection, args=(c_sckt, addr))
@@ -155,8 +155,6 @@ def main():
     except OSError:
         print("ERROR: Unavailable/busy port. Ending process...")
         return
-    server_socket.listen(1)
-    print("Initialisation finished - now listening...")
 
     # create a seperate thread for server_socket.accept() so it can be stopped by KeyboardInterrupt:
     main_thread = threading.Thread(target=handle_main_thread, args=(server_socket,))
