@@ -30,9 +30,7 @@ def send_response(response, connection_socket, success_flag=True, show_response=
 
 def get_board_list():
     """list all directories(boards) in folder"""
-    return sorted([f for f in os.listdir('./board') if not f.startswith('.')], key=str.lower)
-    #source: https://stackoverflow.com/a/26554941
-
+    return sorted([f for f in os.listdir("./board") if not f.startswith(".")], key=str.lower)
 
 def get_messages(args):
     """create and return a list of messages for the specified board"""
@@ -40,15 +38,14 @@ def get_messages(args):
     if args is None:
         return "ERROR: No parameters provided.", False
     try:
-        board_name = args['board_name']
+        board_name = args["board_name"]
     except KeyError as error:
         return "ERROR: Missing parameter {}".format(error), False
     if board_name not in get_board_list():
         return "ERROR: Board \"{}\" does not exist.".format(board_name), False
 
-    board_path = './board/{}'.format(board_name)
+    board_path = "./board/{}".format(board_name)
     message_list = next(os.walk(board_path))[2] # list all files (messages) in folder
-    # source: https://stackoverflow.com/a/142535
     message_list.sort() # ordered alphanumerically by name (and therefore ordered by date)
     message_list = message_list[-100:] # 100 most recent messages
 
@@ -56,7 +53,7 @@ def get_messages(args):
     response_data = []
     for message_title in message_list:
         if re.search("[0-9]{8}-[0-9]{6}-.+[.]txt", message_title) is not None:
-            file = open('{}/{}'.format(board_path, message_title), 'r')
+            file = open("{}/{}".format(board_path, message_title), "r")
             message_content = file.read()
             response_data.append([message_title, message_content])
             file.close()
@@ -68,20 +65,20 @@ def post_message(args, request_timestamp):
     if args is None:
         return "ERROR: No parameters provided.", False
     try:
-        board_name = args['board_name']
+        board_name = args["board_name"]
         if not board_name in get_board_list():
             return "ERROR: Board \"{}\" does not exist.".format(board_name), False
-        board_path = './board/{}'.format(board_name)
-        message_title = args['post_title']
-        message_content = args['message_content']
+        board_path = "./board/{}".format(board_name)
+        message_title = args["post_title"]
+        message_content = args["message_content"]
     except KeyError as error:
         return "ERROR: Missing parameter {}".format(error), False
     # create file_name from timestamp and title:
-    file_name = request_timestamp.strftime('%Y%m%d-%H%M%S') #YYYYMMDD-HHMMSS
-    file_name += '-'
-    file_name += '{}.txt'.format(message_title.replace(' ', '_'))
+    file_name = request_timestamp.strftime("%Y%m%d-%H%M%S") #YYYYMMDD-HHMMSS
+    file_name += "-"
+    file_name += "{}.txt".format(message_title.replace(" ", "_"))
     # create and write to file:
-    file = open('{}/{}'.format(board_path, file_name), 'w+')
+    file = open("{}/{}".format(board_path, file_name), "w+")
     file.write(message_content)
     file.close()
     return "Message successfully posted.", True
@@ -92,8 +89,8 @@ def handle_connection(connection_socket, addr):
     request = json.loads(connection_socket.recv(2048).decode())
     request_timestamp = datetime.datetime.now()
     print("Message received from client: {}".format(request))
-    request_type = request['request_type']
-    args = request['args']
+    request_type = request["request_type"]
+    args = request["args"]
     if request_type == "GET_BOARDS":
         response, success_flag = get_board_list(), True
         # will always be successful as message boards have been confirmed to be defined
@@ -113,20 +110,20 @@ def handle_connection(connection_socket, addr):
     log_line = ""
     log_line += (addr[0] + ":" + str(addr[1]))
     log_line += "\t\t"
-    log_line += request_timestamp.strftime('%Y/%m/%d %H:%M:%S')
+    log_line += request_timestamp.strftime("%Y/%m/%d %H:%M:%S")
     log_line += "\t\t"
-    log_line += format(request_type, '<12')
+    log_line += format(request_type, "<12")
     log_line += "\t\t"
     log_line += {True: "OK", False: "Error"}[success_flag]
     log_line += "\n"
-    file = open("server.log", 'a+')
+    file = open("server.log", "a+")
     file.write(log_line)
     file.close()
 
 
 def handle_main_thread(server_socket):
     """accepts client connections and opens a new thread for each"""
-    server_socket.listen(1)
+    server_socket.listen(1) #small backlog, as connections are accepted immediately
     print("Initialisation finished - now listening...")
     while True:
         c_sckt, addr = server_socket.accept()
@@ -136,11 +133,11 @@ def handle_main_thread(server_socket):
 def main():
     """main function: initialise server socket and start main thread"""
     # variables:
-    default_server_address = '127.0.0.1'
+    default_server_address = "127.0.0.1"
     default_server_port = 12000
 
     # ensure message boards are defined:
-    if not os.path.isdir('./board'):
+    if not os.path.isdir("./board"):
         print("Board folder is missing. Ending process...")
         return
     if len(get_board_list()) == 0:
