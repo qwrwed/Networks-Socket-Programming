@@ -44,7 +44,7 @@ def get_messages(args):
         board_name = args["board_name"]
     except KeyError as error:
         return "ERROR: Missing parameter {}".format(error), False
-    if board_name not in get_board_list():
+    if board_name not in get_board_list()[0]:
         return "ERROR: Board \"{}\" does not exist.".format(board_name), False
 
     board_path = "./board/{}".format(board_name)
@@ -69,7 +69,7 @@ def post_message(args, request_timestamp):
         return "ERROR: No parameters provided.", False
     try:
         board_name = args["board_name"]
-        if not board_name in get_board_list():
+        if not board_name in get_board_list()[0]:
             return "ERROR: Board \"{}\" does not exist.".format(board_name), False
         board_path = "./board/{}".format(board_name)
         message_title = args["post_title"]
