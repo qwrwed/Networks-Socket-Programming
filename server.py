@@ -30,7 +30,10 @@ def send_response(response, connection_socket, success_flag=True, show_response=
 
 def get_board_list():
     """list all directories(boards) in folder"""
-    return sorted([f for f in os.listdir("./board") if not f.startswith(".")], key=str.lower)
+    try:
+        return [sorted([f for f in os.listdir("./board") if not f.startswith(".")], key=str.lower), True]
+    except FileNotFoundError:
+        return ["ERROR: \"board\" folder no longer exists on server", False]
 
 def get_messages(args):
     """create and return a list of messages for the specified board"""
@@ -92,12 +95,12 @@ def handle_connection(connection_socket, addr):
     request_type = request["request_type"]
     args = request["args"]
     if request_type == "GET_BOARDS":
-        response, success_flag = get_board_list(), True
-        # will always be successful as message boards have been confirmed to be defined
+        response, success_flag = get_board_list()
         send_response(response, connection_socket, success_flag)
     elif request_type == "GET_MESSAGES":
         response, success_flag = get_messages(args)
         send_response(response, connection_socket, success_flag, False)
+        # show_response=False: don't print message list to console
     elif request_type == "POST_MESSAGE":
         response, success_flag = post_message(args, request_timestamp)
         send_response(response, connection_socket, success_flag)
@@ -140,7 +143,8 @@ def main():
     if not os.path.isdir("./board"):
         print("Board folder is missing. Ending process...")
         return
-    if len(get_board_list()) == 0:
+    initial_board_list, initial_board_success = get_board_list()
+    if not initial_board_success or len(initial_board_list) == 0:
         print("No boards defined. Ending process...")
         return
 
